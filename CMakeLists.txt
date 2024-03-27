@@ -8,5 +8,8 @@ set(CMAKE_FLAGS "${CMAKE_FLAGS} -Wall -Werror")
 find_package(SDL2 REQUIRED)
 include_directories(${SDL2_INCLUDE_DIRS})
 
-add_executable(tetris main.c)
+add_executable(tetris
+  src/main.c
+  src/render.c
+)
 target_link_libraries(tetris ${SDL2_LIBRARIES})

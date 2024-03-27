@@ -1,3 +1,6 @@
+#include "defs.h"
+#include "render.h"
+
 #include <assert.h>
 #include <SDL.h>
 #include <SDL_error.h>
@@ -16,107 +19,6 @@
  * Proper textures.
  * Remove black border on left side
  */
-
-#define N_ELEMENTS(X) (sizeof(X) / sizeof(*(X)))
-
-#define TILE_SIZE 8
-#define GAME_TILES_WIDE 10
-#define GAME_TILES_HIGH 16 // This is the whole height
-
-// Taken from Tic80
-#define UNSCALED_WINDOW_WIDTH 240
-#define UNSCALED_WINDOW_HEIGHT 136
-#define DPI 4
-
-/* Dimensions:
-Width of the game board is TILE_SIZE * GAMES_TILES_WIDE = 80. To center this the
-drawing rect should start at 240/2 - 80/2 = 80; This splits the window into
-three equally sized parts.
-*/
-
-SDL_Window* g_window = NULL;
-SDL_Renderer* g_renderer = NULL;
-SDL_Texture* g_game_board = NULL;
-SDL_Texture* g_game_background = NULL;
-SDL_Texture* g_tile = NULL;
-
-int32_t game_init() {
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) < 0) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                     "Couldn't initialize SDL: %s", SDL_GetError());
-        return 1;
-    }
-
-    g_window =
-        SDL_CreateWindow("Tetris", SDL_WINDOWPOS_UNDEFINED,
-                         SDL_WINDOWPOS_UNDEFINED, UNSCALED_WINDOW_WIDTH * DPI,
-                         UNSCALED_WINDOW_HEIGHT * DPI, SDL_WINDOW_SHOWN);
-    if (g_window == NULL) {
-        printf("Could not create window");
-        return 1;
-    }
-
-    g_renderer = SDL_CreateRenderer(g_window, -1, SDL_RENDERER_ACCELERATED);
-    if (g_renderer == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                     "Couldn't initializer renderer: %s", SDL_GetError());
-        return 1;
-    }
-
-    g_game_board = SDL_CreateTexture(
-        g_renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING,
-        GAME_TILES_WIDE * TILE_SIZE, GAME_TILES_HIGH * TILE_SIZE);
-
-    if (g_game_board == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                     "Couldn't create global texture: %s", SDL_GetError());
-        return 1;
-    }
-
-    g_game_background = SDL_CreateTexture(
-        g_renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING,
-        (GAME_TILES_WIDE + 2) * TILE_SIZE, GAME_TILES_HIGH * TILE_SIZE);
-    if (g_game_background == NULL) {
-        return 1;
-    }
-
-    g_tile =
-        SDL_CreateTexture(g_renderer, SDL_PIXELFORMAT_RGBA32,
-                          SDL_TEXTUREACCESS_STREAMING, TILE_SIZE, TILE_SIZE);
-    if (g_tile == NULL) {
-        return 1;
-    }
-
-    SDL_Color game_background[(GAME_TILES_WIDE + 2) * TILE_SIZE *
-                              GAME_TILES_HIGH * TILE_SIZE] = {0};
-
-    size_t const column_width = (GAME_TILES_WIDE + 2) * TILE_SIZE;
-    // TODO: Move ETileState to a header file
-    // SDL_Color const background_color = get_color(TileState_Border);
-    for (int i = 0; i < N_ELEMENTS(game_background); i++) {
-        game_background[i] =
-            (SDL_Color){.r = 133, .g = 149, .b = 161, .a = 255};
-    }
-    SDL_Rect const background_rect = {
-        .x = 0, .y = 0, .w = column_width, .h = GAME_TILES_HIGH * TILE_SIZE};
-    int r = SDL_UpdateTexture(g_game_background, &background_rect,
-                              &game_background, sizeof(SDL_Color));
-    if (r != 0) {
-        printf("%s", SDL_GetError());
-        return 1;
-    }
-
-    return 0;
-}
-
-void game_release() {
-    // TODO: Why are we wasting time cleaning up when closing the game?
-    SDL_DestroyTexture(g_game_board);
-    SDL_DestroyTexture(g_game_background);
-    SDL_DestroyRenderer(g_renderer);
-    SDL_DestroyWindow(g_window);
-    SDL_Quit();
-}
 
 typedef enum {
     EBrickShape_Straight = 0,
@@ -295,69 +197,11 @@ Brick create_brick(EBrickShape shape) {
     return brick;
 }
 
-void draw_tile(IVec2 pos, SDL_Color color) {
-
-    SDL_Color tile[TILE_SIZE * TILE_SIZE] = {0};
-    for (int i = 0; i < N_ELEMENTS(tile); i++) {
-        tile[i] = color;
-    }
-
-    int r = SDL_UpdateTexture(g_tile, NULL, &tile, sizeof(SDL_Color));
-
-    int const x_start = 80;
-    int const y_start = 0;
-
-    int const x = x_start + pos.x * TILE_SIZE;
-    int const y = y_start + pos.y * TILE_SIZE;
-
-    SDL_Rect const dst = {
-        .x = x * DPI, .y = y * DPI, .w = TILE_SIZE * DPI, .h = TILE_SIZE * DPI};
-    r |= SDL_RenderCopy(g_renderer, g_tile, NULL, &dst);
-
-    if (r != 0) {
-        printf("%s\n", SDL_GetError());
-    }
-}
-
 void draw_brick(Brick const* brick) {
     SDL_Color const color = get_color(brick->state);
     for (int i = 0; i < 4; i++) {
-        draw_tile(ivec2_add(brick->pos, brick->tiles[i]), color);
-    }
-}
-
-void draw_board() {
-    SDL_Color
-        pixels[GAME_TILES_WIDE * GAME_TILES_HIGH * TILE_SIZE * TILE_SIZE] = {0};
-    for (int i = 0; i < N_ELEMENTS(pixels); i++) {
-        pixels[i] = (SDL_Color){.r = 255, .g = 0, .b = 0, .a = 255};
-    }
-
-    int r = SDL_UpdateTexture(g_game_board, NULL, &pixels, sizeof(SDL_Color));
-
-    int const screen_mid = UNSCALED_WINDOW_WIDTH * DPI / 2;
-    int const background_width = (GAME_TILES_WIDE + 2) * TILE_SIZE * DPI;
-    int const board_width = GAME_TILES_WIDE * TILE_SIZE * DPI;
-    int const board_height = GAME_TILES_HIGH * TILE_SIZE * DPI;
-    int const window_height = UNSCALED_WINDOW_HEIGHT * DPI;
-
-    SDL_Rect const background_dst_rect = {.x =
-                                              screen_mid - background_width / 2,
-                                          .y = 0,
-                                          .w = background_width,
-                                          .h = window_height};
-
-    SDL_Rect const game_board_dst_rect = {.x = screen_mid - board_width / 2,
-                                          .y = 0,
-                                          .w = board_width,
-                                          .h = board_height};
-
-    r |= SDL_RenderCopy(g_renderer, g_game_background, NULL,
-                        &background_dst_rect);
-    r |= SDL_RenderCopy(g_renderer, g_game_board, NULL, &game_board_dst_rect);
-
-    if (r != 0) {
-        printf("%s\n", SDL_GetError());
+        IVec2 pos = ivec2_add(brick->pos, brick->tiles[i]);
+        render_draw_tile(pos.x, pos.y, color);
     }
 }
 
@@ -380,7 +224,7 @@ void draw_tiles(ETileState tiles[NUM_TILES]) {
 
         SDL_Color color = get_color(tiles[i]);
         IVec2 pos = tile_index_to_pos(i);
-        draw_tile(pos, color);
+        render_draw_tile(pos.x, pos.y, color);
     }
 }
 
@@ -490,7 +334,8 @@ void move_sideway(GameState* game, int32_t dy) {
 }
 
 int main(int argc, char** args) {
-    if (game_init() != 0) {
+    if (render_init(UNSCALED_WINDOW_WIDTH, UNSCALED_WINDOW_HEIGHT, DPI,
+                    GAME_TILES_WIDE, GAME_TILES_HIGH, TILE_SIZE) != 0) {
         goto quit;
     }
 
@@ -537,11 +382,11 @@ int main(int argc, char** args) {
             } break;
         }
 
-        draw_board();
+        render_draw_board();
         draw_brick(&game.current_brick);
         draw_tiles(game.tiles);
 
-        SDL_RenderPresent(g_renderer);
+        render_present();
 
         uint32_t const frame_end = SDL_GetTicks();
         delta_ticks = frame_end - frame_start;
@@ -554,7 +399,7 @@ int main(int argc, char** args) {
     }
 
 quit:
-    game_release();
+    render_drop();
 
     return 0;
 }
