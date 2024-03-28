@@ -3,39 +3,30 @@
 #include "defs.h"
 
 #include <SDL.h>
+#include <SDL_image.h>
+#include <SDL_render.h>
 
 #define MAX_TEXTURES 64
-#define INVALID_HANDLE -1
-
-// typedef struct {
-//     TextureHandle handle;
-//     int32_t width;
-//     int32_t height;
-//     SDL_Texture* texture;
-// } Texture;
-
-// typedef struct {
-//     Texture textures[MAX_TEXTURES];
-//     int32_t num;
-//     int32_t handle_counter;
-// } TextureStorage;
-
-// TextureStorage g_texture_storage = {0};
+// #define INVALID_HANDLE -1
 
 SDL_Window* g_window = NULL;
 SDL_Renderer* g_renderer = NULL;
 SDL_Texture* g_game_board = NULL;
 SDL_Texture* g_game_background = NULL;
-SDL_Texture* g_tile = NULL;
+SDL_Texture* g_tiles = NULL;
 
-// Texture* find_texture(TextureHandle handle) {
-//     for (int i = 0; i < g_texture_storage.num; i++) {
-//         if (g_texture_storage.textures[i].handle == handle) {
-//             return &g_texture_storage.textures[i];
-//         }
-//     }
-//     return NULL;
-// }
+// typedef enum {
+//     ETextureOffset_Empty = 0,
+//     ETextureOffset_Border,
+//     ETextureOffset_Red,
+//     ETextureOffset_Blue,
+//     ETextureOffset_LtBlue,
+//     ETextureOffset_Orange,
+//     ETextureOffset_Green,
+//     ETextureOffset_Pink,
+//     ETextureOffset_Purple,
+//     ETextureOffset_MAX
+// } ETextureOffset;
 
 int32_t render_init(int32_t window_width, int32_t window_height, float dpi,
                     int32_t game_tiles_wide, int32_t game_tiles_high,
@@ -78,22 +69,20 @@ int32_t render_init(int32_t window_width, int32_t window_height, float dpi,
         return 1;
     }
 
-    g_tile =
-        SDL_CreateTexture(g_renderer, SDL_PIXELFORMAT_RGBA32,
-                          SDL_TEXTUREACCESS_STREAMING, tile_size, tile_size);
-    if (g_tile == NULL) {
+    SDL_Surface* tiles = IMG_Load("assets/tiles_01.png");
+    if (tiles == NULL) {
+        printf("%s\n", SDL_GetError());
         return 1;
     }
+    g_tiles = SDL_CreateTextureFromSurface(g_renderer, tiles);
+    SDL_FreeSurface(tiles);
 
     return 0;
 }
 
 void render_drop() {
-    // for (int i = 0; i < g_texture_storage.num; i++) {
-    //     SDL_DestroyTexture(g_texture_storage.textures[i].texture);
-    // }
     SDL_DestroyTexture(g_game_background);
-    SDL_DestroyTexture(g_tile);
+    SDL_DestroyTexture(g_tiles);
     SDL_DestroyTexture(g_game_board);
     SDL_DestroyRenderer(g_renderer);
     SDL_DestroyWindow(g_window);
@@ -120,23 +109,27 @@ void render_draw_background() {
     }
 }
 
-void render_draw_tile(int32_t x_pos, int32_t y_pos, SDL_Color color) {
-    SDL_Color tile[TILE_SIZE * TILE_SIZE] = {0};
-    for (int i = 0; i < N_ELEMENTS(tile); i++) {
-        tile[i] = color;
-    }
+void render_draw_tile(int32_t x_pos, int32_t y_pos, EColor color) {
+    // SDL_Color tile[TILE_SIZE * TILE_SIZE] = {0};
+    // for (int i = 0; i < N_ELEMENTS(tile); i++) {
+    //     tile[i] = color;
+    // }
 
-    int r = SDL_UpdateTexture(g_tile, NULL, &tile, sizeof(SDL_Color));
+    // int r = SDL_UpdateTexture(g_tile, NULL, &tile, sizeof(SDL_Color));
+    // Source
+    int const src_x = color * TILE_SIZE;
+    SDL_Rect const src = {.x = src_x, .y = 0, .w = TILE_SIZE, .h = TILE_SIZE};
 
-    int const x_start = 80;
-    int const y_start = 0;
+    // Dest
+    int dst_x = 80;
+    dst_x += x_pos * TILE_SIZE;
+    int const dst_y = y_pos * TILE_SIZE;
 
-    int const x = x_start + x_pos * TILE_SIZE;
-    int const y = y_start + y_pos * TILE_SIZE;
-
-    SDL_Rect const dst = {
-        .x = x * DPI, .y = y * DPI, .w = TILE_SIZE * DPI, .h = TILE_SIZE * DPI};
-    r |= SDL_RenderCopy(g_renderer, g_tile, NULL, &dst);
+    SDL_Rect const dst = {.x = dst_x * DPI,
+                          .y = dst_y * DPI,
+                          .w = TILE_SIZE * DPI,
+                          .h = TILE_SIZE * DPI};
+    int r = SDL_RenderCopy(g_renderer, g_tiles, &src, &dst);
 
     if (r != 0) {
         printf("%s\n", SDL_GetError());

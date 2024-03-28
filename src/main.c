@@ -1,4 +1,5 @@
 #include "defs.h"
+#include "math.h"
 #include "render.h"
 
 #include <assert.h>
@@ -30,20 +31,6 @@ typedef enum {
     EBrickShape_LSkew,
 } EBrickShape;
 
-typedef struct {
-    float x;
-    float y;
-} APP_Vec2;
-
-typedef struct {
-    int32_t x;
-    int32_t y;
-} IVec2;
-
-IVec2 ivec2_add(IVec2 lhs, IVec2 rhs) {
-    return (IVec2){.x = lhs.x + rhs.x, .y = lhs.y + rhs.y};
-}
-
 typedef enum {
     ETileState_None = 0,
     ETileState_Green,
@@ -56,52 +43,51 @@ typedef enum {
     ETileState_Border,
 } ETileState;
 
-typedef struct {
-    IVec2 pos;
-    IVec2 tiles[4];
-    ETileState state; // TODO: This name is misleading
-} Brick;
-
-SDL_Color get_color(ETileState tile_state) {
-    switch (tile_state) {
+EColor get_color_from_state(ETileState state) {
+    switch (state) {
         case ETileState_None:
-            return (SDL_Color){.r = 59, .g = 31, .b = 45, .a = 128};
+            return EColor_None;
         case ETileState_Green:
-            return (SDL_Color){.r = 52, .g = 101, .b = 36, .a = 255};
+            return EColor_Green;
         case ETileState_Blue:
-            return (SDL_Color){.r = 84, .g = 119, .b = 196, .a = 255};
+            return EColor_Blue;
         case ETileState_Red:
-            return (SDL_Color){.r = 208, .g = 70, .b = 72, .a = 255};
+            return EColor_Red;
         case ETileState_Orange:
-            return (SDL_Color){.r = 210, .g = 125, .b = 44, .a = 255};
+            return EColor_Orange;
         case ETileState_LtBlue:
-            return (SDL_Color){.r = 109, .g = 193, .b = 201, .a = 255};
+            return EColor_LtBlue;
         case ETileState_Yellow:
-            return (SDL_Color){.r = 218, .g = 212, .b = 94, .a = 255};
+            return EColor_Pink;
         case ETileState_Purple:
-            return (SDL_Color){.r = 48, .g = 52, .b = 109, .a = 255};
+            return EColor_Purple;
         case ETileState_Border:
-            return (SDL_Color){.r = 133, .g = 149, .b = 161, .a = 255};
+            return EColor_Border;
     }
 }
 
-// TODO: Rename to imply color
-ETileState get_state_from_shape(EBrickShape shape) {
+typedef struct {
+    IVec2 pos;
+    IVec2 tiles[4];
+    EColor color;
+} Brick;
+
+EColor get_color_from_shape(EBrickShape shape) {
     switch (shape) {
         case EBrickShape_Straight:
-            return ETileState_LtBlue;
+            return EColor_LtBlue;
         case EBrickShape_Square:
-            return ETileState_Yellow;
+            return EColor_Pink;
         case EBrickShape_T:
-            return ETileState_Blue;
+            return EColor_Blue;
         case EBrickShape_LRight:
-            return ETileState_Purple;
+            return EColor_Purple;
         case EBrickShape_LLeft:
-            return ETileState_Orange;
+            return EColor_Orange;
         case EBrickShape_RSkew:
-            return ETileState_Red;
+            return EColor_Red;
         case EBrickShape_LSkew:
-            return ETileState_Green;
+            return EColor_Green;
     }
 }
 
@@ -142,11 +128,9 @@ ECollision tiles_check_collision(ETileState tiles[], IVec2 brick_tiles[],
     return ECollision_None;
 }
 
-void tiles_add_brick(ETileState tiles[], Brick* brick) { return; }
-
 Brick create_brick(EBrickShape shape) {
     Brick brick = {0};
-    brick.state = get_state_from_shape(shape);
+    brick.color = get_color_from_shape(shape);
     // TODO: Pick a random pos on first row
     brick.pos = (IVec2){1, 1};
 
@@ -198,10 +182,9 @@ Brick create_brick(EBrickShape shape) {
 }
 
 void draw_brick(Brick const* brick) {
-    SDL_Color const color = get_color(brick->state);
     for (int i = 0; i < 4; i++) {
         IVec2 pos = ivec2_add(brick->pos, brick->tiles[i]);
-        render_draw_tile(pos.x, pos.y, color);
+        render_draw_tile(pos.x, pos.y, brick->color);
     }
 }
 
@@ -222,7 +205,7 @@ void draw_tiles(ETileState tiles[NUM_TILES]) {
             continue;
         }
 
-        SDL_Color color = get_color(tiles[i]);
+        EColor color = get_color_from_state(tiles[i]);
         IVec2 pos = tile_index_to_pos(i);
         render_draw_tile(pos.x, pos.y, color);
     }
@@ -231,12 +214,11 @@ void draw_tiles(ETileState tiles[NUM_TILES]) {
 void game_handle_touchdown(GameState* game) {
 
     // 1. Move brick tiles to game.tiles
-    ETileState state = game->current_brick.state;
     for (int i = 0; i < 4; i++) {
         IVec2 const pos =
             ivec2_add(game->current_brick.tiles[i], game->current_brick.pos);
         uint32_t tile_index = pos_to_tile_index(pos);
-        game->tiles[tile_index] = state;
+        game->tiles[tile_index] = ETileState_Green;
     }
 
     // 2. Spawn a new (random) brick
@@ -285,18 +267,14 @@ void pack_brick_tiles(IVec2 brick_tiles[]) {
     }
 }
 
-IVec2 vec2_rotate_cw(IVec2 vec2) { return (IVec2){.x = -vec2.y, .y = vec2.x}; }
-
-IVec2 vec2_rotate_ccw(IVec2 vec2) { return (IVec2){.x = vec2.y, .y = -vec2.x}; }
-
 void game_rotate(GameState* game, ERotation rot) {
     IVec2 new_tiles[4] = {0};
     for (int i = 0; i < 4; i++) {
         IVec2 const tile_pos = game->current_brick.tiles[i];
         if (rot == ERotation_CW) {
-            new_tiles[i] = vec2_rotate_cw(tile_pos);
+            new_tiles[i] = ivec2_rotate_cw(tile_pos);
         } else {
-            new_tiles[i] = vec2_rotate_ccw(tile_pos);
+            new_tiles[i] = ivec2_rotate_ccw(tile_pos);
         }
     }
     pack_brick_tiles(new_tiles);
