@@ -19,10 +19,14 @@ IVec2 ivec2_add(IVec2 lhs, IVec2 rhs) {
     return (IVec2){.x = lhs.x + rhs.x, .y = lhs.y + rhs.y};
 }
 
-IVec2 ivec2_rotate_cw(IVec2 vec2) { return (IVec2){.x = -vec2.y, .y = vec2.x}; }
+IVec2 ivec2_rotate_cw(IVec2 vec2) {
+    IVec2 const rotated = {.x = -vec2.y, .y = vec2.x};
+    return rotated;
+}
 
 IVec2 ivec2_rotate_ccw(IVec2 vec2) {
-    return (IVec2){.x = vec2.y, .y = -vec2.x};
+    IVec2 const rotated = {.x = vec2.y, .y = -vec2.x};
+    return rotated;
 }
 
 #endif

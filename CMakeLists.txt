@@ -3,7 +3,19 @@ cmake_minimum_required(VERSION 3.7)
 project(TetrisC)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_FLAGS "${CMAKE_FLAGS} -Wall -Werror")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} \
+  -Wall \
+  -Werror \
+  -Wextra \
+  -Wshadow \
+  -Wcast-align \
+  -Wfloat-equal \
+  -Wstrict-prototypes \
+  -Wcast-qual \
+  -Wswitch-enum \
+  -Wconversion \
+  ")
+set(CMAKE_BUILD_TYPE Debug)
 
 find_package(SDL2 REQUIRED)
 find_package(SDL2_image REQUIRED)

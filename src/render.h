@@ -19,15 +19,13 @@ typedef enum {
     EColor_MAX
 } EColor;
 
-int32_t render_init(int32_t window_width, int32_t window_height, float dpi,
-                    int32_t game_tiles_wide, int32_t game_tiles_high,
-                    int32_t tile_size);
-void render_drop();
+int32_t render_init(void);
+void render_drop(void);
 
-void render_draw_background();
+void render_draw_background(void);
 void render_draw_tile(int32_t x_pos, int32_t y_pos, EColor color);
-void render_draw_board();
+void render_draw_board(void);
 
-void render_present();
+void render_present(void);
 
 #endif

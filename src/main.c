@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <SDL.h>
 #include <SDL_error.h>
+#include <SDL_events.h>
 #include <SDL_gesture.h>
 #include <SDL_image.h>
 #include <SDL_keycode.h>
@@ -64,6 +65,7 @@ EColor get_color_from_state(ETileState state) {
         case ETileState_Border:
             return EColor_Border;
     }
+    return EColor_None;
 }
 
 typedef struct {
@@ -89,6 +91,7 @@ EColor get_color_from_shape(EBrickShape shape) {
         case EBrickShape_LSkew:
             return EColor_Green;
     }
+    return EColor_None;
 }
 
 #define NUM_TILES (GAME_TILES_WIDE * GAME_TILES_HIGH)
@@ -107,19 +110,24 @@ typedef enum {
 ECollision tiles_check_collision(ETileState tiles[], IVec2 brick_tiles[],
                                  IVec2 new_pos) {
     for (int32_t i = 0; i < 4; i++) {
-        int32_t x = new_pos.x + brick_tiles[i].x;
-        int32_t y = new_pos.y + brick_tiles[i].y;
-
-        if (x < 0 || x >= GAME_TILES_WIDE) {
-            return ECollision_Side;
-        }
+        int32_t const x = new_pos.x + brick_tiles[i].x;
+        int32_t const y = new_pos.y + brick_tiles[i].y;
 
         if (y >= GAME_TILES_HIGH) {
+            printf("Bottom collision on (x,y) = (%i, %i)\n", x, y);
             return ECollision_Bottom;
         }
 
+        if (x < 0 || x >= GAME_TILES_WIDE) {
+            printf("Side collision on (x,y) = (%i, %i)\n", x, y);
+            return ECollision_Side;
+        }
+
         int32_t index = y * GAME_TILES_WIDE + x;
-        assert(index < NUM_TILES);
+        if (index >= NUM_TILES) {
+            printf("Received out-of-bounds index %i\n", index);
+            assert(NULL);
+        }
         if (tiles[index] != ETileState_None) {
             return ECollision_Bottom;
         }
@@ -131,8 +139,7 @@ ECollision tiles_check_collision(ETileState tiles[], IVec2 brick_tiles[],
 Brick create_brick(EBrickShape shape) {
     Brick brick = {0};
     brick.color = get_color_from_shape(shape);
-    // TODO: Pick a random pos on first row
-    brick.pos = (IVec2){1, 1};
+    brick.pos = (IVec2){rand() % GAME_TILES_WIDE, 0};
 
     switch (shape) {
         case EBrickShape_Straight: {
@@ -172,10 +179,10 @@ Brick create_brick(EBrickShape shape) {
             brick.tiles[3] = (IVec2){.x = 0, .y = 1};
         } break;
         case EBrickShape_LSkew: {
-            brick.tiles[0] = (IVec2){.x = 1, .y = 0};
+            brick.tiles[0] = (IVec2){.x = -1, .y = 0};
             brick.tiles[1] = (IVec2){.x = 0, .y = 0};
             brick.tiles[2] = (IVec2){.x = 0, .y = 1};
-            brick.tiles[3] = (IVec2){.x = 1, .y = 0};
+            brick.tiles[3] = (IVec2){.x = 1, .y = 1};
         } break;
     }
     return brick;
@@ -188,15 +195,13 @@ void draw_brick(Brick const* brick) {
     }
 }
 
-IVec2 tile_index_to_pos(uint32_t index) {
+IVec2 tile_index_to_pos(int32_t index) {
     int32_t x = index % GAME_TILES_WIDE;
     int32_t y = index / GAME_TILES_WIDE;
     return (IVec2){.x = x, .y = y};
 }
 
-uint32_t pos_to_tile_index(IVec2 pos) {
-    return pos.y * GAME_TILES_WIDE + pos.x;
-}
+int32_t pos_to_tile_index(IVec2 pos) { return pos.y * GAME_TILES_WIDE + pos.x; }
 
 void draw_tiles(ETileState tiles[]) {
     for (int i = 0; i < NUM_TILES; i++) {
@@ -213,10 +218,10 @@ void draw_tiles(ETileState tiles[]) {
 void game_handle_touchdown(GameState* game) {
 
     // 1. Move brick tiles to game.tiles
-    for (int i = 0; i < 4; i++) {
+    for (int32_t i = 0; i < 4; i++) {
         IVec2 const pos =
             ivec2_add(game->current_brick.tiles[i], game->current_brick.pos);
-        uint32_t tile_index = pos_to_tile_index(pos);
+        int32_t tile_index = pos_to_tile_index(pos);
         game->tiles[tile_index] = ETileState_Green;
     }
 
@@ -239,7 +244,7 @@ uint32_t game_movement_callback(uint32_t interval, void* game_state) {
     if (collision == ECollision_None) {
         b->pos = new_pos;
     } else if (collision == ECollision_Side) {
-        assert("Unreachable");
+        assert(NULL);
     } else if (collision == ECollision_Bottom) {
         game_handle_touchdown(game);
     }
@@ -254,19 +259,18 @@ typedef enum {
 
 int32_t min(int32_t lhs, int32_t rhs) { return lhs < rhs ? lhs : rhs; }
 
-// TODO: Maybe this should be the other way around. Packing downwards.
-void pack_brick_tiles(IVec2 brick_tiles[]) {
-    int32_t min_y = INT32_MIN;
-    for (int i = 0; i < 4; i++) {
-        min_y = min(min_y, brick_tiles[i].y);
-    }
+// void pack_brick_tiles(IVec2 brick_tiles[]) {
+//     int32_t min_y = INT32_MAX;
+//     for (int i = 0; i < 4; i++) {
+//         min_y = min(min_y, brick_tiles[i].y);
+//     }
 
-    for (int i = 0; i < 4; i++) {
-        brick_tiles[i].y = brick_tiles[i].y - min_y;
-    }
-}
+//     for (int i = 0; i < 4; i++) {
+//         brick_tiles[i].y = brick_tiles[i].y - min_y;
+//     }
+// }
 
-void game_rotate(GameState* game, ERotation rot) {
+void brick_rotate(GameState* game, ERotation rot) {
     IVec2 new_tiles[4] = {0};
     for (int i = 0; i < 4; i++) {
         IVec2 const tile_pos = game->current_brick.tiles[i];
@@ -276,7 +280,6 @@ void game_rotate(GameState* game, ERotation rot) {
             new_tiles[i] = ivec2_rotate_ccw(tile_pos);
         }
     }
-    pack_brick_tiles(new_tiles);
 
     ECollision const collision =
         tiles_check_collision(game->tiles, new_tiles, game->current_brick.pos);
@@ -284,9 +287,10 @@ void game_rotate(GameState* game, ERotation rot) {
         return;
     }
 
+    // Move sideways until we fit
     if (collision == ECollision_Side) {
         int32_t offset[4] = {1, -1, 2, -2};
-        for (int i = 0; i < N_ELEMENTS(offset); i++) {
+        for (int32_t i = 0; i < 4; i++) {
             IVec2 offseted_pos = game->current_brick.pos;
             offseted_pos.x += offset[i];
             if (ECollision_None ==
@@ -310,9 +314,9 @@ void move_sideway(GameState* game, int32_t dy) {
     }
 }
 
-int main(int argc, char** args) {
-    if (render_init(UNSCALED_WINDOW_WIDTH, UNSCALED_WINDOW_HEIGHT, DPI,
-                    GAME_TILES_WIDE, GAME_TILES_HIGH, TILE_SIZE) != 0) {
+int main(void) {
+    if (render_init() != 0) {
+        printf("%s\n", SDL_GetError());
         goto quit;
     }
 
@@ -322,8 +326,7 @@ int main(int argc, char** args) {
     uint32_t delta_ticks = 0;
     uint32_t const target_frame_ticks = 16;
 
-    SDL_TimerID movement_timer =
-        SDL_AddTimer(800, game_movement_callback, &game);
+    // SDL_AddTimer(800, game_movement_callback, &game);
 
     SDL_Event event = {0};
     while (1) {
@@ -331,6 +334,9 @@ int main(int argc, char** args) {
 
         SDL_PollEvent(&event);
         switch (event.type) {
+            case SDL_QUIT: {
+                goto quit;
+            }
             case SDL_KEYDOWN: {
                 switch (event.key.keysym.sym) {
                     case SDLK_ESCAPE: {
@@ -350,10 +356,10 @@ int main(int argc, char** args) {
                         game_movement_callback(0, &game);
                     } break;
                     case SDLK_z: {
-                        game_rotate(&game, ERotation_CCW);
+                        brick_rotate(&game, ERotation_CCW);
                     } break;
                     case SDLK_x: {
-                        game_rotate(&game, ERotation_CW);
+                        brick_rotate(&game, ERotation_CW);
                     }
                 }
             } break;
