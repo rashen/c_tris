@@ -198,8 +198,7 @@ uint32_t pos_to_tile_index(IVec2 pos) {
     return pos.y * GAME_TILES_WIDE + pos.x;
 }
 
-// TODO: I'm not sure the explicit size is doing anything here
-void draw_tiles(ETileState tiles[NUM_TILES]) {
+void draw_tiles(ETileState tiles[]) {
     for (int i = 0; i < NUM_TILES; i++) {
         if (tiles[i] == ETileState_None) {
             continue;
@@ -360,9 +359,9 @@ int main(int argc, char** args) {
             } break;
         }
 
-        render_draw_board();
-        draw_brick(&game.current_brick);
+        render_draw_background();
         draw_tiles(game.tiles);
+        draw_brick(&game.current_brick);
 
         render_present();
 
