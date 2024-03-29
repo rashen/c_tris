@@ -1,6 +1,8 @@
 #ifndef CTRIS_RENDER_H_
 #define CTRIS_RENDER_H_
 
+#include "defs.h"
+
 #include <SDL_render.h>
 
 typedef int32_t TextureHandle;
@@ -25,6 +27,8 @@ void render_drop(void);
 void render_draw_background(void);
 void render_draw_tile(int32_t x_pos, int32_t y_pos, EColor color);
 void render_draw_board(void);
+
+void render_particle(f32_t x, f32_t y);
 
 void render_present(void);
 

@@ -1,11 +1,10 @@
-#ifndef C_TRIS_MATH_H_
-#define C_TRIS_MATH_H_
+#ifndef C_TRIS_VEC2_H_
+#define C_TRIS_VEC2_H_
+
+#include "defs.h"
 
 #include <assert.h>
 #include <stdint.h>
-
-typedef float f32_t;
-typedef double f64_t;
 
 static_assert(sizeof(f32_t) == 4, "Misleading type name");
 static_assert(sizeof(f64_t) == 8, "Misleading type name");

@@ -23,5 +23,6 @@ find_package(SDL2_image REQUIRED)
 add_executable(tetris
   src/main.c
   src/render.c
+  src/particles.c
 )
 target_link_libraries(tetris SDL2::SDL2 SDL2_image::SDL2_image)

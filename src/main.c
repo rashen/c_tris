@@ -1,7 +1,8 @@
 #include "defs.h"
 #include "log.h"
-#include "math.h"
+#include "particles.h"
 #include "render.h"
+#include "vec2.h"
 
 #include <assert.h>
 #include <SDL.h>
@@ -217,7 +218,7 @@ void game_handle_touchdown(GameState* game) {
 
     // 2. Spawn a new (random) brick
     EBrickShape const shape = (EBrickShape)(rand() % (NUM_BRICK_TYPES + 1));
-    assert(shape < NUM_BRICK_TYPES);
+    assert(shape <= NUM_BRICK_TYPES);
 
     game->current_brick = create_brick(shape);
 
@@ -257,6 +258,30 @@ void game_handle_touchdown(GameState* game) {
     }
 }
 
+int32_t min(int32_t lhs, int32_t rhs) { return lhs < rhs ? lhs : rhs; }
+int32_t max(int32_t lhs, int32_t rhs) { return lhs > rhs ? lhs : rhs; }
+
+void spawn_particles(Brick* brick) {
+
+    int32_t max_y = INT32_MIN;
+    for (int32_t i = 0; i < 4; i++) {
+        max_y = max(brick->tiles[i].y, max_y);
+    }
+
+    int32_t min_x = INT32_MAX;
+    int32_t max_x = INT32_MIN;
+    for (int32_t i = 0; i < 4; i++) {
+        if (brick->tiles[i].y == max_y) {
+            min_x = min(min_x, brick->tiles[i].x);
+            max_x = max(max_x, brick->tiles[i].x);
+        }
+    }
+
+    particles_spawn(50, (f32_t)brick->pos.y + (f32_t)max_y + 0.5f,
+                    (f32_t)brick->pos.x + (f32_t)min_x - 0.5f,
+                    (f32_t)brick->pos.x + (f32_t)max_x + 0.5f);
+}
+
 void game_handle_down_movement(GameState* game, bool with_force) {
     Brick* b = &game->current_brick;
     EColor* t = game->tiles;
@@ -270,8 +295,10 @@ void game_handle_down_movement(GameState* game, bool with_force) {
     } else if (collision == ECollision_Side) {
         assert(NULL);
     } else if (collision == ECollision_Bottom) {
-        // TODO: Particles!
-        (void)with_force;
+        if (with_force) {
+            spawn_particles(b);
+        }
+
         game_handle_touchdown(game);
     }
 }
@@ -280,8 +307,6 @@ typedef enum {
     ERotation_CW = 0,
     ERotation_CCW,
 } ERotation;
-
-int32_t min(int32_t lhs, int32_t rhs) { return lhs < rhs ? lhs : rhs; }
 
 void brick_rotate(GameState* game, ERotation rot) {
     IVec2 new_tiles[4] = {0};
@@ -380,6 +405,7 @@ int main(void) {
                         } break;
                         case SDLK_DOWN:
                         case SDLK_s: {
+                            with_down_force = true;
                             game_handle_down_movement(&game, with_down_force);
                         } break;
                         case SDLK_z: {
@@ -399,6 +425,8 @@ int main(void) {
         render_draw_background();
         draw_tiles(game.tiles);
         draw_brick(&game.current_brick);
+        f32_t const delta_time = (f32_t)delta_ticks / 1000.f;
+        particles_update(delta_time);
 
         render_present();
 

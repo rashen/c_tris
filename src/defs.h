@@ -1,6 +1,9 @@
 #ifndef C_TRIS_DEFS_H_
 #define C_TRIS_DEFS_H_
 
+typedef float f32_t;
+typedef double f64_t;
+
 #define N_ELEMENTS(X) (sizeof(X) / sizeof(*(X)))
 
 /* Dimensions:
@@ -10,7 +13,7 @@ three equally sized parts.
 */
 #define TILE_SIZE 8
 #define GAME_TILES_WIDE 10
-#define GAME_TILES_HIGH 16 // This is the whole height
+#define GAME_TILES_HIGH 16
 
 // Taken from Tic80
 #define UNSCALED_WINDOW_WIDTH 240
