@@ -15,6 +15,7 @@
 #include <SDL_stdinc.h>
 #include <SDL_surface.h>
 #include <SDL_video.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <time.h>
 
@@ -212,14 +213,14 @@ void draw_tiles(ETileState tiles[]) {
     }
 }
 
-int32_t row_is_empty(ETileState* first_index) {
+bool row_is_empty(ETileState* first_index) {
     for (int32_t x = 0; x < GAME_TILES_WIDE; x++) {
         ETileState const tile = *(first_index + x);
         if (tile != ETileState_None) {
-            return 0;
+            return false;
         }
     }
-    return 1;
+    return true;
 }
 
 int32_t lowest_nonempty_tile_index(ETileState* tiles) {
@@ -281,8 +282,7 @@ void game_handle_touchdown(GameState* game) {
     }
 }
 
-uint32_t game_movement_callback(uint32_t interval, void* game_state) {
-    GameState* game = (GameState*)game_state;
+void game_handle_down_movement(GameState* game, bool with_force) {
     Brick* b = &game->current_brick;
     ETileState* t = game->tiles;
 
@@ -295,10 +295,10 @@ uint32_t game_movement_callback(uint32_t interval, void* game_state) {
     } else if (collision == ECollision_Side) {
         assert(NULL);
     } else if (collision == ECollision_Bottom) {
+        // TODO: Particles!
+        (void)with_force;
         game_handle_touchdown(game);
     }
-
-    return interval;
 }
 
 typedef enum {
@@ -352,6 +352,18 @@ void move_sideway(GameState* game, int32_t dy) {
     }
 }
 
+uint32_t g_movement_interval = 800;
+uint32_t g_timer_trigger_event = 0;
+
+uint32_t timer_callback(uint32_t interval, void* data) {
+    (void)data;
+    (void)interval;
+    SDL_Event event = {0};
+    event.type = g_timer_trigger_event;
+    SDL_PushEvent(&event);
+    return g_movement_interval;
+}
+
 int main(void) {
     if (render_init() != 0) {
         printf("%s\n", SDL_GetError());
@@ -365,44 +377,48 @@ int main(void) {
     uint32_t delta_ticks = 0;
     uint32_t const target_frame_ticks = 16;
 
-    SDL_AddTimer(800, game_movement_callback, &game);
+    SDL_AddTimer(g_movement_interval, timer_callback, NULL);
+    g_timer_trigger_event = SDL_RegisterEvents(1);
 
     SDL_Event event = {0};
     while (1) {
         uint32_t const frame_start = SDL_GetTicks();
+        bool with_down_force = false;
 
-        SDL_PollEvent(&event);
-        switch (event.type) {
-            case SDL_QUIT: {
-                goto quit;
-            }
-            case SDL_KEYDOWN: {
-                switch (event.key.keysym.sym) {
-                    case SDLK_ESCAPE: {
-                        goto quit;
-                    } break;
-                    case SDLK_LEFT:
-                    case SDLK_a: {
-                        move_sideway(&game, -1);
-                    } break;
-                    case SDLK_RIGHT:
-                    case SDLK_d: {
-                        move_sideway(&game, 1);
-                    } break;
-                    case SDLK_DOWN:
-                    case SDLK_s: {
-                        // TODO: This is a hack (that works surprisingly
-                        // well)
-                        game_movement_callback(0, &game);
-                    } break;
-                    case SDLK_z: {
-                        brick_rotate(&game, ERotation_CCW);
-                    } break;
-                    case SDLK_x: {
-                        brick_rotate(&game, ERotation_CW);
-                    }
+        while (SDL_PollEvent(&event)) {
+            switch (event.type) {
+                case SDL_QUIT: {
+                    goto quit;
                 }
-            } break;
+                case SDL_KEYDOWN: {
+                    switch (event.key.keysym.sym) {
+                        case SDLK_ESCAPE: {
+                            goto quit;
+                        } break;
+                        case SDLK_LEFT:
+                        case SDLK_a: {
+                            move_sideway(&game, -1);
+                        } break;
+                        case SDLK_RIGHT:
+                        case SDLK_d: {
+                            move_sideway(&game, 1);
+                        } break;
+                        case SDLK_DOWN:
+                        case SDLK_s: {
+                            game_handle_down_movement(&game, with_down_force);
+                        } break;
+                        case SDLK_z: {
+                            brick_rotate(&game, ERotation_CCW);
+                        } break;
+                        case SDLK_x: {
+                            brick_rotate(&game, ERotation_CW);
+                        }
+                    }
+                } break;
+            }
+            if (event.type == g_timer_trigger_event) {
+                game_handle_down_movement(&game, with_down_force);
+            }
         }
 
         render_draw_background();
