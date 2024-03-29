@@ -19,6 +19,7 @@
 #include <stddef.h>
 #include <time.h>
 
+#define NUM_BRICK_TYPES 7
 typedef enum {
     EBrickShape_Straight = 0,
     EBrickShape_Square,
@@ -28,42 +29,6 @@ typedef enum {
     EBrickShape_RSkew,
     EBrickShape_LSkew,
 } EBrickShape;
-
-typedef enum {
-    ETileState_None = 0,
-    ETileState_Green,
-    ETileState_Blue,
-    ETileState_Red,
-    ETileState_Orange,
-    ETileState_LtBlue,
-    ETileState_Yellow,
-    ETileState_Purple,
-    ETileState_Border,
-} ETileState;
-
-EColor get_color_from_state(ETileState state) {
-    switch (state) {
-        case ETileState_None:
-            return EColor_None;
-        case ETileState_Green:
-            return EColor_Green;
-        case ETileState_Blue:
-            return EColor_Blue;
-        case ETileState_Red:
-            return EColor_Red;
-        case ETileState_Orange:
-            return EColor_Orange;
-        case ETileState_LtBlue:
-            return EColor_LtBlue;
-        case ETileState_Yellow:
-            return EColor_Pink;
-        case ETileState_Purple:
-            return EColor_Purple;
-        case ETileState_Border:
-            return EColor_Border;
-    }
-    return EColor_None;
-}
 
 typedef struct {
     IVec2 pos;
@@ -87,14 +52,15 @@ EColor get_color_from_shape(EBrickShape shape) {
             return EColor_Red;
         case EBrickShape_LSkew:
             return EColor_Green;
+        default:
+            return EColor_None;
     }
-    return EColor_None;
 }
 
 #define NUM_TILES (GAME_TILES_WIDE * GAME_TILES_HIGH)
 
 typedef struct {
-    ETileState tiles[NUM_TILES];
+    EColor tiles[NUM_TILES];
     Brick current_brick;
     int32_t score;
 } GameState;
@@ -105,7 +71,7 @@ typedef enum {
     ECollision_Bottom = 2,
 } ECollision;
 
-ECollision tiles_check_collision(ETileState tiles[], IVec2 brick_tiles[],
+ECollision tiles_check_collision(EColor tiles[], IVec2 brick_tiles[],
                                  IVec2 new_pos) {
     for (int32_t i = 0; i < 4; i++) {
         int32_t const x = new_pos.x + brick_tiles[i].x;
@@ -126,7 +92,7 @@ ECollision tiles_check_collision(ETileState tiles[], IVec2 brick_tiles[],
             LOG_ERROR("Received out-of-bounds index %i\n", index);
             assert(NULL);
         }
-        if (tiles[index] != ETileState_None) {
+        if (tiles[index] != EColor_None) {
             return ECollision_Bottom;
         }
     }
@@ -141,42 +107,49 @@ Brick create_brick(EBrickShape shape) {
 
     switch (shape) {
         case EBrickShape_Straight: {
+            LOG_INFO("%s\n", "Creating Straight brick");
             brick.tiles[0] = (IVec2){.x = -1, .y = 0};
             brick.tiles[1] = (IVec2){.x = 0, .y = 0};
             brick.tiles[2] = (IVec2){.x = 1, .y = 0};
             brick.tiles[3] = (IVec2){.x = 2, .y = 0};
         } break;
         case EBrickShape_Square: {
+            LOG_INFO("%s\n", "Creating Square brick");
             brick.tiles[0] = (IVec2){.x = 0, .y = 0};
             brick.tiles[1] = (IVec2){.x = 1, .y = 0};
             brick.tiles[2] = (IVec2){.x = 0, .y = 1};
             brick.tiles[3] = (IVec2){.x = 1, .y = 1};
         } break;
         case EBrickShape_T: {
+            LOG_INFO("%s\n", "Creating T brick");
             brick.tiles[0] = (IVec2){.x = 0, .y = 1};
             brick.tiles[1] = (IVec2){.x = 1, .y = 1};
             brick.tiles[2] = (IVec2){.x = 1, .y = 2};
             brick.tiles[3] = (IVec2){.x = 1, .y = 0};
         } break;
         case EBrickShape_LRight: {
+            LOG_INFO("%s\n", "Creating LRight brick");
             brick.tiles[0] = (IVec2){.x = 0, .y = 0};
             brick.tiles[1] = (IVec2){.x = 0, .y = 1};
             brick.tiles[2] = (IVec2){.x = 0, .y = 2};
             brick.tiles[3] = (IVec2){.x = 1, .y = 2};
         } break;
         case EBrickShape_LLeft: {
+            LOG_INFO("%s\n", "Creating LLeft brick");
             brick.tiles[0] = (IVec2){.x = 1, .y = 0};
             brick.tiles[1] = (IVec2){.x = 1, .y = 1};
             brick.tiles[2] = (IVec2){.x = 1, .y = 2};
             brick.tiles[3] = (IVec2){.x = 0, .y = 2};
         } break;
         case EBrickShape_RSkew: {
+            LOG_INFO("%s\n", "Creating RSkew brick");
             brick.tiles[0] = (IVec2){.x = -1, .y = 1};
             brick.tiles[1] = (IVec2){.x = 1, .y = 0};
             brick.tiles[2] = (IVec2){.x = 0, .y = 0};
             brick.tiles[3] = (IVec2){.x = 0, .y = 1};
         } break;
         case EBrickShape_LSkew: {
+            LOG_INFO("%s\n", "Creating LSkew brick");
             brick.tiles[0] = (IVec2){.x = -1, .y = 0};
             brick.tiles[1] = (IVec2){.x = 0, .y = 0};
             brick.tiles[2] = (IVec2){.x = 0, .y = 1};
@@ -201,31 +174,31 @@ IVec2 tile_index_to_pos(int32_t index) {
 
 int32_t pos_to_tile_index(IVec2 pos) { return pos.y * GAME_TILES_WIDE + pos.x; }
 
-void draw_tiles(ETileState tiles[]) {
+void draw_tiles(EColor tiles[]) {
     for (int i = 0; i < NUM_TILES; i++) {
-        if (tiles[i] == ETileState_None) {
+        if (tiles[i] == EColor_None) {
             continue;
         }
 
-        EColor color = get_color_from_state(tiles[i]);
-        IVec2 pos = tile_index_to_pos(i);
+        EColor const color = tiles[i];
+        IVec2 const pos = tile_index_to_pos(i);
         render_draw_tile(pos.x, pos.y, color);
     }
 }
 
-bool row_is_empty(ETileState* first_index) {
+bool row_is_empty(EColor* first_index) {
     for (int32_t x = 0; x < GAME_TILES_WIDE; x++) {
-        ETileState const tile = *(first_index + x);
-        if (tile != ETileState_None) {
+        EColor const tile = *(first_index + x);
+        if (tile != EColor_None) {
             return false;
         }
     }
     return true;
 }
 
-int32_t lowest_nonempty_tile_index(ETileState* tiles) {
+int32_t lowest_nonempty_tile_index(EColor* tiles) {
     for (int32_t i = 0; i < NUM_TILES; i++) {
-        if (tiles[i] != ETileState_None) {
+        if (tiles[i] != EColor_None) {
             return i;
         }
     }
@@ -239,11 +212,13 @@ void game_handle_touchdown(GameState* game) {
         IVec2 const pos =
             ivec2_add(game->current_brick.tiles[i], game->current_brick.pos);
         int32_t tile_index = pos_to_tile_index(pos);
-        game->tiles[tile_index] = ETileState_Green;
+        game->tiles[tile_index] = game->current_brick.color;
     }
 
     // 2. Spawn a new (random) brick
-    EBrickShape const shape = (EBrickShape)rand() % 8;
+    EBrickShape const shape = (EBrickShape)(rand() % (NUM_BRICK_TYPES + 1));
+    assert(shape < NUM_BRICK_TYPES);
+
     game->current_brick = create_brick(shape);
 
     // 3. Remove full lines
@@ -252,12 +227,12 @@ void game_handle_touchdown(GameState* game) {
         int32_t const x_start = y * GAME_TILES_WIDE;
         int32_t num_occupied = 0;
         for (int32_t x = 0; x < GAME_TILES_WIDE; x++) {
-            if (game->tiles[x_start + x] == ETileState_None) {
+            if (game->tiles[x_start + x] == EColor_None) {
                 break;
             }
             if (++num_occupied == GAME_TILES_WIDE) {
-                memset(&game->tiles[x_start], (int32_t)ETileState_None,
-                       sizeof(ETileState_None) * GAME_TILES_WIDE);
+                memset(&game->tiles[x_start], (int32_t)EColor_None,
+                       sizeof(EColor_None) * GAME_TILES_WIDE);
                 score = score * 2 + 1000;
             }
         }
@@ -284,7 +259,7 @@ void game_handle_touchdown(GameState* game) {
 
 void game_handle_down_movement(GameState* game, bool with_force) {
     Brick* b = &game->current_brick;
-    ETileState* t = game->tiles;
+    EColor* t = game->tiles;
 
     IVec2 new_pos = b->pos;
     new_pos.y += 1;

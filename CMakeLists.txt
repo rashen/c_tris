@@ -12,7 +12,6 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} \
   -Wfloat-equal \
   -Wstrict-prototypes \
   -Wcast-qual \
-  -Wswitch-enum \
   -Wconversion \
   -DDEBUG \
   ")
