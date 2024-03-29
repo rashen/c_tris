@@ -14,6 +14,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} \
   -Wcast-qual \
   -Wswitch-enum \
   -Wconversion \
+  -DDEBUG \
   ")
 set(CMAKE_BUILD_TYPE Debug)
 

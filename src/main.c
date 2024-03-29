@@ -1,4 +1,5 @@
 #include "defs.h"
+#include "log.h"
 #include "math.h"
 #include "render.h"
 
@@ -15,12 +16,7 @@
 #include <SDL_surface.h>
 #include <SDL_video.h>
 #include <stddef.h>
-
-/* TODO:
- * Fix collision and rotation
- * Proper textures.
- * Remove black border on left side
- */
+#include <time.h>
 
 typedef enum {
     EBrickShape_Straight = 0,
@@ -99,6 +95,7 @@ EColor get_color_from_shape(EBrickShape shape) {
 typedef struct {
     ETileState tiles[NUM_TILES];
     Brick current_brick;
+    int32_t score;
 } GameState;
 
 typedef enum {
@@ -114,18 +111,18 @@ ECollision tiles_check_collision(ETileState tiles[], IVec2 brick_tiles[],
         int32_t const y = new_pos.y + brick_tiles[i].y;
 
         if (y >= GAME_TILES_HIGH) {
-            printf("Bottom collision on (x,y) = (%i, %i)\n", x, y);
+            LOG_INFO("Bottom collision on (x,y) = (%i, %i)\n", x, y);
             return ECollision_Bottom;
         }
 
         if (x < 0 || x >= GAME_TILES_WIDE) {
-            printf("Side collision on (x,y) = (%i, %i)\n", x, y);
+            LOG_INFO("Side collision on (x,y) = (%i, %i)\n", x, y);
             return ECollision_Side;
         }
 
         int32_t index = y * GAME_TILES_WIDE + x;
         if (index >= NUM_TILES) {
-            printf("Received out-of-bounds index %i\n", index);
+            LOG_ERROR("Received out-of-bounds index %i\n", index);
             assert(NULL);
         }
         if (tiles[index] != ETileState_None) {
@@ -139,7 +136,7 @@ ECollision tiles_check_collision(ETileState tiles[], IVec2 brick_tiles[],
 Brick create_brick(EBrickShape shape) {
     Brick brick = {0};
     brick.color = get_color_from_shape(shape);
-    brick.pos = (IVec2){rand() % GAME_TILES_WIDE, 0};
+    brick.pos = (IVec2){2 + rand() % (GAME_TILES_WIDE - 4), 0};
 
     switch (shape) {
         case EBrickShape_Straight: {
@@ -173,9 +170,9 @@ Brick create_brick(EBrickShape shape) {
             brick.tiles[3] = (IVec2){.x = 0, .y = 2};
         } break;
         case EBrickShape_RSkew: {
-            brick.tiles[0] = (IVec2){.x = 0, .y = 1};
-            brick.tiles[1] = (IVec2){.x = 1, .y = 1};
-            brick.tiles[2] = (IVec2){.x = 1, .y = 0};
+            brick.tiles[0] = (IVec2){.x = -1, .y = 1};
+            brick.tiles[1] = (IVec2){.x = 1, .y = 0};
+            brick.tiles[2] = (IVec2){.x = 0, .y = 0};
             brick.tiles[3] = (IVec2){.x = 0, .y = 1};
         } break;
         case EBrickShape_LSkew: {
@@ -215,6 +212,25 @@ void draw_tiles(ETileState tiles[]) {
     }
 }
 
+int32_t row_is_empty(ETileState* first_index) {
+    for (int32_t x = 0; x < GAME_TILES_WIDE; x++) {
+        ETileState const tile = *(first_index + x);
+        if (tile != ETileState_None) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+int32_t lowest_nonempty_tile_index(ETileState* tiles) {
+    for (int32_t i = 0; i < NUM_TILES; i++) {
+        if (tiles[i] != ETileState_None) {
+            return i;
+        }
+    }
+    return NUM_TILES - 1;
+}
+
 void game_handle_touchdown(GameState* game) {
 
     // 1. Move brick tiles to game.tiles
@@ -228,8 +244,41 @@ void game_handle_touchdown(GameState* game) {
     // 2. Spawn a new (random) brick
     EBrickShape const shape = (EBrickShape)rand() % 8;
     game->current_brick = create_brick(shape);
-    // 3. Check if we should remove a line of tiles
-    // 4. Update score
+
+    // 3. Remove full lines
+    int32_t score = 0;
+    for (int32_t y = 0; y < GAME_TILES_HIGH; y++) {
+        int32_t const x_start = y * GAME_TILES_WIDE;
+        int32_t num_occupied = 0;
+        for (int32_t x = 0; x < GAME_TILES_WIDE; x++) {
+            if (game->tiles[x_start + x] == ETileState_None) {
+                break;
+            }
+            if (++num_occupied == GAME_TILES_WIDE) {
+                memset(&game->tiles[x_start], (int32_t)ETileState_None,
+                       sizeof(ETileState_None) * GAME_TILES_WIDE);
+                score = score * 2 + 1000;
+            }
+        }
+    }
+    game->score += score;
+
+    // 4. Pack tiles
+    if (score > 0) {
+        for (int32_t y0 = GAME_TILES_HIGH - 1; y0 > 0; y0--) {
+            int32_t const x_start = y0 * GAME_TILES_WIDE;
+            while (row_is_empty(&game->tiles[x_start]) &&
+                   lowest_nonempty_tile_index(game->tiles) < x_start) {
+                for (int32_t y1 = y0; y1 > 0; y1--) {
+                    int32_t const dst = y1 * GAME_TILES_WIDE;
+                    int32_t const src = (y1 - 1) * GAME_TILES_WIDE;
+                    LOG_INFO("Packing: Moving %i to %i\n", src, dst);
+                    memcpy(&game->tiles[dst], &game->tiles[src],
+                           sizeof(game->tiles[0]) * GAME_TILES_WIDE);
+                }
+            }
+        }
+    }
 }
 
 uint32_t game_movement_callback(uint32_t interval, void* game_state) {
@@ -258,17 +307,6 @@ typedef enum {
 } ERotation;
 
 int32_t min(int32_t lhs, int32_t rhs) { return lhs < rhs ? lhs : rhs; }
-
-// void pack_brick_tiles(IVec2 brick_tiles[]) {
-//     int32_t min_y = INT32_MAX;
-//     for (int i = 0; i < 4; i++) {
-//         min_y = min(min_y, brick_tiles[i].y);
-//     }
-
-//     for (int i = 0; i < 4; i++) {
-//         brick_tiles[i].y = brick_tiles[i].y - min_y;
-//     }
-// }
 
 void brick_rotate(GameState* game, ERotation rot) {
     IVec2 new_tiles[4] = {0};
@@ -319,6 +357,7 @@ int main(void) {
         printf("%s\n", SDL_GetError());
         goto quit;
     }
+    srand((uint32_t)time(NULL));
 
     GameState game = {0};
     game.current_brick = create_brick(EBrickShape_Straight);
@@ -326,7 +365,7 @@ int main(void) {
     uint32_t delta_ticks = 0;
     uint32_t const target_frame_ticks = 16;
 
-    // SDL_AddTimer(800, game_movement_callback, &game);
+    SDL_AddTimer(800, game_movement_callback, &game);
 
     SDL_Event event = {0};
     while (1) {
@@ -352,7 +391,8 @@ int main(void) {
                     } break;
                     case SDLK_DOWN:
                     case SDLK_s: {
-                        // TODO: This is a hack (that works surprisingly well)
+                        // TODO: This is a hack (that works surprisingly
+                        // well)
                         game_movement_callback(0, &game);
                     } break;
                     case SDLK_z: {
