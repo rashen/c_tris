@@ -21,12 +21,14 @@ int32_t particles_spawn(int32_t num, f32_t y, f32_t x_min, f32_t x_max) {
 
             f32_t const angle = randf_in_range(-1.f, 1.f); // Radians
             f32_t const speed = randf_in_range(MIN_VELOCITY, MAX_VELOCITY);
+            f32_t const x = randf_in_range(x_min, x_max);
+            // LOG_INFO("Spawning particle at (%f, %f)\n'", x, y);
 
             g_particles[i] = (Particle){
                 .lifetime = randf_in_range(MIN_LIFETIME, MAX_LIFETIME),
                 .age = 0.0,
+                .x = x,
                 .y = y,
-                .x = randf_in_range(x_min, x_max),
                 .x_vel = SDL_sinf(angle) * speed,
                 .y_vel = -(SDL_cosf(angle) * speed),
                 .is_alive = true};
@@ -44,8 +46,8 @@ void particle_update(Particle* particle, f32_t delta_time) {
         return;
     }
 
-    particle->x = particle->x_vel * delta_time;
-    particle->y = particle->y_vel * delta_time;
+    particle->x += particle->x_vel * delta_time;
+    particle->y += particle->y_vel * delta_time;
     particle->y_vel += GRAVITY * delta_time;
 }
 

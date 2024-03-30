@@ -277,9 +277,9 @@ void spawn_particles(Brick* brick) {
         }
     }
 
-    particles_spawn(50, (f32_t)brick->pos.y + (f32_t)max_y + 0.5f,
-                    (f32_t)brick->pos.x + (f32_t)min_x - 0.5f,
-                    (f32_t)brick->pos.x + (f32_t)max_x + 0.5f);
+    particles_spawn(50, (f32_t)brick->pos.y + (f32_t)max_y + 1.f,
+                    (f32_t)brick->pos.x + (f32_t)min_x,
+                    (f32_t)brick->pos.x + (f32_t)max_x + 1.f);
 }
 
 void game_handle_down_movement(GameState* game, bool with_force) {

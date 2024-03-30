@@ -1,6 +1,7 @@
 #include "render.h"
 
 #include "defs.h"
+#include "log.h"
 
 #include <SDL.h>
 #include <SDL_image.h>
@@ -96,12 +97,18 @@ void render_draw_tile(int32_t x_pos, int32_t y_pos, EColor color) {
     }
 }
 
-// TODO: This position is fked
 void render_particle(f32_t x, f32_t y) {
     SDL_SetRenderDrawColor(g_renderer, 255, 255, 255, 255);
-    f32_t const game_board_offset = 80 * DPI;
-    SDL_FRect const rect = {
-        .x = x + game_board_offset, .y = y, .w = 20.f, .h = 20.f};
+    f32_t const game_board_tile_offset = 10.f;
+
+    f32_t const x_window =
+        (game_board_tile_offset + x) * (f32_t)TILE_SIZE * (f32_t)DPI;
+    f32_t const y_window = y * (f32_t)TILE_SIZE * (f32_t)DPI;
+    f32_t const size = 2.f * (f32_t)DPI;
+
+    // LOG_INFO("Drawing particle at (%f, %f)\n", x_window, y_window);
+
+    SDL_FRect const rect = {.x = x_window, .y = y_window, .w = size, .h = size};
     SDL_RenderFillRectF(g_renderer, &rect);
 }
 
