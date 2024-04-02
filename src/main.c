@@ -156,6 +156,9 @@ Brick create_brick(EBrickShape shape) {
             brick.tiles[2] = (IVec2){.x = 0, .y = 1};
             brick.tiles[3] = (IVec2){.x = 1, .y = 1};
         } break;
+        default: {
+            assert(false);
+        }
     }
     return brick;
 }
@@ -206,6 +209,9 @@ int32_t lowest_nonempty_tile_index(EColor* tiles) {
     return NUM_TILES - 1;
 }
 
+// Returns int in range [0, n).
+int32_t rand_n(int32_t max) { return rand() / (RAND_MAX / max + 1); }
+
 void game_handle_touchdown(GameState* game) {
 
     // 1. Move brick tiles to game.tiles
@@ -217,7 +223,7 @@ void game_handle_touchdown(GameState* game) {
     }
 
     // 2. Spawn a new (random) brick
-    EBrickShape const shape = (EBrickShape)(rand() % (NUM_BRICK_TYPES + 1));
+    EBrickShape const shape = (EBrickShape)rand_n(NUM_BRICK_TYPES);
     assert(shape <= NUM_BRICK_TYPES);
 
     game->current_brick = create_brick(shape);
@@ -433,10 +439,11 @@ int main(void) {
         uint32_t const frame_end = SDL_GetTicks();
         delta_ticks = frame_end - frame_start;
         if (delta_ticks < target_frame_ticks) {
-            SDL_Delay(target_frame_ticks - delta_ticks);
-            // Fetch ticks again after delay. The delay can potentially be
-            // longer than specified.
-            delta_ticks = SDL_GetTicks() - frame_start;
+            uint32_t const continue_at = frame_end + target_frame_ticks;
+            delta_ticks = target_frame_ticks;
+            while (SDL_GetTicks() < continue_at) {
+                // Spin lock: do nothing
+            }
         }
     }
 
