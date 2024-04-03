@@ -2,6 +2,7 @@
 #include "log.h"
 #include "particles.h"
 #include "render.h"
+#include "sound.h"
 #include "vec2.h"
 
 #include <assert.h>
@@ -209,10 +210,39 @@ int32_t lowest_nonempty_tile_index(EColor* tiles) {
     return NUM_TILES - 1;
 }
 
+int32_t min(int32_t lhs, int32_t rhs) { return lhs < rhs ? lhs : rhs; }
+int32_t max(int32_t lhs, int32_t rhs) { return lhs > rhs ? lhs : rhs; }
+
+void spawn_particles(Brick* brick) {
+
+    int32_t max_y = INT32_MIN;
+    for (int32_t i = 0; i < 4; i++) {
+        max_y = max(brick->tiles[i].y, max_y);
+    }
+
+    int32_t min_x = INT32_MAX;
+    int32_t max_x = INT32_MIN;
+    for (int32_t i = 0; i < 4; i++) {
+        if (brick->tiles[i].y == max_y) {
+            min_x = min(min_x, brick->tiles[i].x);
+            max_x = max(max_x, brick->tiles[i].x);
+        }
+    }
+
+    particles_spawn(50, (f32_t)brick->pos.y + (f32_t)max_y + 1.f,
+                    (f32_t)brick->pos.x + (f32_t)min_x,
+                    (f32_t)brick->pos.x + (f32_t)max_x + 1.f);
+}
+
 // Returns int in range [0, n).
 int32_t rand_n(int32_t max) { return rand() / (RAND_MAX / max + 1); }
 
-void game_handle_touchdown(GameState* game) {
+void game_handle_touchdown(GameState* game, bool with_force) {
+    // 0. Handle force
+    if (with_force) {
+        spawn_particles(&game->current_brick);
+        sound_touchdown();
+    }
 
     // 1. Move brick tiles to game.tiles
     for (int32_t i = 0; i < 4; i++) {
@@ -225,7 +255,6 @@ void game_handle_touchdown(GameState* game) {
     // 2. Spawn a new (random) brick
     EBrickShape const shape = (EBrickShape)rand_n(NUM_BRICK_TYPES);
     assert(shape <= NUM_BRICK_TYPES);
-
     game->current_brick = create_brick(shape);
 
     // 3. Remove full lines
@@ -264,30 +293,6 @@ void game_handle_touchdown(GameState* game) {
     }
 }
 
-int32_t min(int32_t lhs, int32_t rhs) { return lhs < rhs ? lhs : rhs; }
-int32_t max(int32_t lhs, int32_t rhs) { return lhs > rhs ? lhs : rhs; }
-
-void spawn_particles(Brick* brick) {
-
-    int32_t max_y = INT32_MIN;
-    for (int32_t i = 0; i < 4; i++) {
-        max_y = max(brick->tiles[i].y, max_y);
-    }
-
-    int32_t min_x = INT32_MAX;
-    int32_t max_x = INT32_MIN;
-    for (int32_t i = 0; i < 4; i++) {
-        if (brick->tiles[i].y == max_y) {
-            min_x = min(min_x, brick->tiles[i].x);
-            max_x = max(max_x, brick->tiles[i].x);
-        }
-    }
-
-    particles_spawn(50, (f32_t)brick->pos.y + (f32_t)max_y + 1.f,
-                    (f32_t)brick->pos.x + (f32_t)min_x,
-                    (f32_t)brick->pos.x + (f32_t)max_x + 1.f);
-}
-
 void game_handle_down_movement(GameState* game, bool with_force) {
     Brick* b = &game->current_brick;
     EColor* t = game->tiles;
@@ -301,11 +306,7 @@ void game_handle_down_movement(GameState* game, bool with_force) {
     } else if (collision == ECollision_Side) {
         assert(NULL);
     } else if (collision == ECollision_Bottom) {
-        if (with_force) {
-            spawn_particles(b);
-        }
-
-        game_handle_touchdown(game);
+        game_handle_touchdown(game, with_force);
     }
 }
 
@@ -375,6 +376,7 @@ int main(void) {
         printf("%s\n", SDL_GetError());
         goto quit;
     }
+    sound_init();
     srand((uint32_t)time(NULL));
 
     GameState game = {0};
@@ -448,6 +450,7 @@ int main(void) {
     }
 
 quit:
+    sound_release();
     render_drop();
 
     return 0;
