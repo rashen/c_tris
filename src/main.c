@@ -128,21 +128,21 @@ Brick create_brick(EBrickShape shape) {
             brick.tiles[0] = (IVec2){.x = 0, .y = 0};
             brick.tiles[1] = (IVec2){.x = -1, .y = 0};
             brick.tiles[2] = (IVec2){.x = 1, .y = 0};
-            brick.tiles[3] = (IVec2){.x = 0, .y = 1};
+            brick.tiles[3] = (IVec2){.x = 0, .y = -1};
         } break;
         case EBrickShape_LRight: {
             LOG_INFO("%s\n", "Creating LRight brick");
-            brick.tiles[0] = (IVec2){.x = 0, .y = -1};
+            brick.tiles[0] = (IVec2){.x = -1, .y = 0};
             brick.tiles[1] = (IVec2){.x = 0, .y = 0};
-            brick.tiles[2] = (IVec2){.x = 0, .y = 1};
-            brick.tiles[3] = (IVec2){.x = 1, .y = 1};
+            brick.tiles[2] = (IVec2){.x = 1, .y = 0};
+            brick.tiles[3] = (IVec2){.x = 1, .y = -1};
         } break;
         case EBrickShape_LLeft: {
             LOG_INFO("%s\n", "Creating LLeft brick");
-            brick.tiles[0] = (IVec2){.x = 0, .y = -1};
+            brick.tiles[0] = (IVec2){.x = -1, .y = 0};
             brick.tiles[1] = (IVec2){.x = 0, .y = 0};
-            brick.tiles[2] = (IVec2){.x = 0, .y = 1};
-            brick.tiles[3] = (IVec2){.x = -1, .y = 1};
+            brick.tiles[2] = (IVec2){.x = 1, .y = 0};
+            brick.tiles[3] = (IVec2){.x = 1, .y = 1};
         } break;
         case EBrickShape_RSkew: {
             LOG_INFO("%s\n", "Creating RSkew brick");
@@ -182,7 +182,7 @@ void draw_brick(Brick const* brick) {
 }
 
 void draw_brick_preview(Brick const* brick) {
-    IVec2 preview_pos = {.x = 15, .y = 2};
+    IVec2 preview_pos = {.x = 14, .y = 3};
     for (int i = 0; i < 4; i++) {
         IVec2 pos = ivec2_add(preview_pos, brick->tiles[i]);
         render_draw_tile(pos.x, pos.y, brick->color);
@@ -273,12 +273,12 @@ void game_handle_touchdown(GameState* game, bool with_force) {
     game->current_brick = game->next_brick;
     game->next_brick = create_random_brick();
 
-    // // 3. Rotate next brick
+    // 3. Rotate next brick
     int32_t const rotations = rand_n(4);
     for (int j = 0; j < rotations; j++) {
         for (int i = 0; i < 4; i++) {
-            game->next_brick.tiles[i] =
-                ivec2_rotate_cw(game->next_brick.tiles[i]);
+            game->current_brick.tiles[i] =
+                ivec2_rotate_cw(game->current_brick.tiles[i]);
         }
     }
 
