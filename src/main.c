@@ -64,6 +64,7 @@ EColor get_color_from_shape(EBrickShape shape) {
 typedef struct {
     EColor tiles[NUM_TILES];
     Brick current_brick;
+    Brick next_brick;
     int32_t score;
 } GameState;
 
@@ -124,24 +125,24 @@ Brick create_brick(EBrickShape shape) {
         } break;
         case EBrickShape_T: {
             LOG_INFO("%s\n", "Creating T brick");
-            brick.tiles[0] = (IVec2){.x = 0, .y = 1};
-            brick.tiles[1] = (IVec2){.x = 1, .y = 1};
-            brick.tiles[2] = (IVec2){.x = 1, .y = 2};
-            brick.tiles[3] = (IVec2){.x = 1, .y = 0};
+            brick.tiles[0] = (IVec2){.x = 0, .y = 0};
+            brick.tiles[1] = (IVec2){.x = -1, .y = 0};
+            brick.tiles[2] = (IVec2){.x = 1, .y = 0};
+            brick.tiles[3] = (IVec2){.x = 0, .y = 1};
         } break;
         case EBrickShape_LRight: {
             LOG_INFO("%s\n", "Creating LRight brick");
-            brick.tiles[0] = (IVec2){.x = 0, .y = 0};
-            brick.tiles[1] = (IVec2){.x = 0, .y = 1};
-            brick.tiles[2] = (IVec2){.x = 0, .y = 2};
-            brick.tiles[3] = (IVec2){.x = 1, .y = 2};
+            brick.tiles[0] = (IVec2){.x = 0, .y = -1};
+            brick.tiles[1] = (IVec2){.x = 0, .y = 0};
+            brick.tiles[2] = (IVec2){.x = 0, .y = 1};
+            brick.tiles[3] = (IVec2){.x = 1, .y = 1};
         } break;
         case EBrickShape_LLeft: {
             LOG_INFO("%s\n", "Creating LLeft brick");
-            brick.tiles[0] = (IVec2){.x = 1, .y = 0};
-            brick.tiles[1] = (IVec2){.x = 1, .y = 1};
-            brick.tiles[2] = (IVec2){.x = 1, .y = 2};
-            brick.tiles[3] = (IVec2){.x = 0, .y = 2};
+            brick.tiles[0] = (IVec2){.x = 0, .y = -1};
+            brick.tiles[1] = (IVec2){.x = 0, .y = 0};
+            brick.tiles[2] = (IVec2){.x = 0, .y = 1};
+            brick.tiles[3] = (IVec2){.x = -1, .y = 1};
         } break;
         case EBrickShape_RSkew: {
             LOG_INFO("%s\n", "Creating RSkew brick");
@@ -164,9 +165,26 @@ Brick create_brick(EBrickShape shape) {
     return brick;
 }
 
+// Returns int in range [0, n).
+int32_t rand_n(int32_t max) { return rand() / (RAND_MAX / max + 1); }
+
+Brick create_random_brick(void) {
+    EBrickShape const shape = (EBrickShape)rand_n(NUM_BRICK_TYPES);
+    assert(shape <= NUM_BRICK_TYPES);
+    return create_brick(shape);
+}
+
 void draw_brick(Brick const* brick) {
     for (int i = 0; i < 4; i++) {
         IVec2 pos = ivec2_add(brick->pos, brick->tiles[i]);
+        render_draw_tile(pos.x, pos.y, brick->color);
+    }
+}
+
+void draw_brick_preview(Brick const* brick) {
+    IVec2 preview_pos = {.x = 15, .y = 2};
+    for (int i = 0; i < 4; i++) {
+        IVec2 pos = ivec2_add(preview_pos, brick->tiles[i]);
         render_draw_tile(pos.x, pos.y, brick->color);
     }
 }
@@ -234,9 +252,6 @@ void spawn_particles(Brick* brick) {
                     (f32_t)brick->pos.x + (f32_t)max_x + 1.f);
 }
 
-// Returns int in range [0, n).
-int32_t rand_n(int32_t max) { return rand() / (RAND_MAX / max + 1); }
-
 void game_handle_touchdown(GameState* game, bool with_force) {
     // 0. Handle force
     if (with_force) {
@@ -255,9 +270,19 @@ void game_handle_touchdown(GameState* game, bool with_force) {
     // 2. Spawn a new (random) brick
     EBrickShape const shape = (EBrickShape)rand_n(NUM_BRICK_TYPES);
     assert(shape <= NUM_BRICK_TYPES);
-    game->current_brick = create_brick(shape);
+    game->current_brick = game->next_brick;
+    game->next_brick = create_random_brick();
 
-    // 3. Remove full lines
+    // // 3. Rotate next brick
+    int32_t const rotations = rand_n(4);
+    for (int j = 0; j < rotations; j++) {
+        for (int i = 0; i < 4; i++) {
+            game->next_brick.tiles[i] =
+                ivec2_rotate_cw(game->next_brick.tiles[i]);
+        }
+    }
+
+    // 4. Remove full lines
     int32_t score = 0;
     for (int32_t y = 0; y < GAME_TILES_HIGH; y++) {
         int32_t const x_start = y * GAME_TILES_WIDE;
@@ -275,7 +300,7 @@ void game_handle_touchdown(GameState* game, bool with_force) {
     }
     game->score += score;
 
-    // 4. Pack tiles
+    // 5. Pack tiles
     if (score > 0) {
         for (int32_t y0 = GAME_TILES_HIGH - 1; y0 > 0; y0--) {
             int32_t const x_start = y0 * GAME_TILES_WIDE;
@@ -380,7 +405,8 @@ int main(void) {
     srand((uint32_t)time(NULL));
 
     GameState game = {0};
-    game.current_brick = create_brick(EBrickShape_Straight);
+    game.current_brick = create_random_brick();
+    game.next_brick = create_random_brick();
 
     uint32_t delta_ticks = 0;
     uint32_t const target_frame_ticks = 16;
@@ -433,6 +459,7 @@ int main(void) {
         render_draw_background();
         draw_tiles(game.tiles);
         draw_brick(&game.current_brick);
+        draw_brick_preview(&game.next_brick);
         f32_t const delta_time = (f32_t)delta_ticks / 1000.f;
         particles_update(delta_time);
 
